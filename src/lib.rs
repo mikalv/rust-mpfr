@@ -33,23 +33,30 @@ type mpfr_sign_t = c_int;
 #[link(name = "mpfr")]
 extern {
     fn mpfr_clear(mpfr: *mut mpfr_struct);
-    fn mpfr_cmp(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_cmp_d(mpfr: *const mpfr_struct, other: c_double) -> c_int;
     fn mpfr_cmp_si(mpfr: *const mpfr_struct, other: c_long) -> c_int;
+    fn mpfr_cmp(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_equal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_get_d(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_double;
     fn mpfr_get_si(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_long;
     fn mpfr_greater_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_greaterequal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_inf_p(mpfr: *const mpfr_struct) -> c_int;
     fn mpfr_init2(mpfr: *mut mpfr_struct, precision: mpfr_prec_t);
     fn mpfr_less_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_lessequal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_lessgreater_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_nan_p(mpfr: *const mpfr_struct) -> c_int;
+    fn mpfr_number_p(mpfr: *const mpfr_struct) -> c_int;
+    fn mpfr_regular_p(mpfr: *const mpfr_struct) -> c_int;
     fn mpfr_set_d(mpfr: *mut mpfr_struct, value: c_double, rounding: mpfr_rnd_t) -> c_int;
+    fn mpfr_set_inf(mpfr: *mut mpfr_struct, sign: c_int);
+    fn mpfr_set_nan(mpfr: *mut mpfr_struct);
     fn mpfr_set_si(mpfr: *mut mpfr_struct, value: c_long, rounding: mpfr_rnd_t) -> c_int;
+    fn mpfr_set_zero(mpfr: *mut mpfr_struct, sign: c_int);
     fn mpfr_snprintf(buffer: *const c_char, length: size_t, string: *const u8, mpfr: *const mpfr_struct) -> c_int;
     fn mpfr_unordered_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_zero_p(mpfr: *const mpfr_struct) -> c_int;
 }
 
 pub struct MPFR {
@@ -83,7 +90,40 @@ impl MPFR {
     
     pub fn nan() -> MPFR {
         unsafe {
-            let mpfr = mpfr_struct::bare();
+            let mut mpfr = mpfr_struct::bare();
+            mpfr_set_nan(&mut mpfr);
+            MPFR { internals: mpfr }
+        }
+    }
+    
+    pub fn infinity() -> MPFR {
+        unsafe {
+            let mut mpfr = mpfr_struct::bare();
+            mpfr_set_inf(&mut mpfr, 1);
+            MPFR { internals: mpfr }
+        }
+    }
+
+    pub fn negative_infinity() -> MPFR {
+        unsafe {
+            let mut mpfr = mpfr_struct::bare();
+            mpfr_set_inf(&mut mpfr, -1);
+            MPFR { internals: mpfr }
+        }
+    }
+    
+    pub fn zero() -> MPFR {
+        unsafe {
+            let mut mpfr = mpfr_struct::bare();
+            mpfr_set_zero(&mut mpfr, 1);
+            MPFR { internals: mpfr }
+        }
+    }
+
+    pub fn negative_zero() -> MPFR {
+        unsafe {
+            let mut mpfr = mpfr_struct::bare();
+            mpfr_set_zero(&mut mpfr, 1);
             MPFR { internals: mpfr }
         }
     }
@@ -99,6 +139,23 @@ impl MPFR {
     pub fn is_nan(&self) -> bool {
         unsafe { mpfr_nan_p(&self.internals) != 0 }
     }
+    
+    pub fn is_infinity(&self) -> bool {
+        unsafe { mpfr_inf_p(&self.internals) != 0 }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        unsafe { mpfr_zero_p(&self.internals) != 0 }
+    }
+    
+    pub fn is_number(&self) -> bool {
+        unsafe { mpfr_number_p(&self.internals) != 0 }
+    }
+
+    pub fn is_regular(&self) -> bool {
+        unsafe { mpfr_regular_p(&self.internals) != 0 }
+    }
+
     
     pub fn is_equal_to_int(&self, value: i64) -> bool {
         unsafe { mpfr_cmp_si(&self.internals, value) == 0 }
@@ -278,14 +335,48 @@ mod test {
             assert!(!(MPFR::from_int(8i64).is_equal_to_float(9f64)))
         }       
     }   
+
+    mod type_cmp {
+        use super::MPFR;
+        
+        #[test]
+        fn nanniness() {
+            assert!(MPFR::nan().is_nan())
+        }
     
-    #[test]
-    fn nanniness() {
-        assert!(MPFR::nan().is_nan())
-    }
+        #[test]
+        fn anniness() {
+            assert!(!MPFR::from_float(27f64).is_nan())
+        }
+        
+        #[test]
+        fn positive_infinity() {
+            assert!(MPFR::infinity().is_infinity())
+        }
+        
+        #[test]
+        fn negative_infinity() {
+            assert!(MPFR::negative_infinity().is_infinity())
+        }
     
-    #[test]
-    fn anniness() {
-        assert!(!MPFR::from_float(27f64).is_nan())
+        #[test]
+        fn positive_zero() {
+            assert!(MPFR::zero().is_zero())
+        }
+        
+        #[test]
+        fn negative_zero() {
+            assert!(MPFR::negative_zero().is_zero())
+        }
+        
+        #[test]
+        fn number() {
+            assert!(MPFR::zero().is_number())
+        }
+        
+        #[test]
+        fn regular() {
+            assert!(!(MPFR::zero().is_regular()))
+        }
     }
 }
