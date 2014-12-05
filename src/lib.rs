@@ -33,6 +33,7 @@ type mpfr_sign_t = c_int;
 #[link(name = "mpfr")]
 extern {
     fn mpfr_clear(mpfr: *mut mpfr_struct);
+    fn mpfr_cmp(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_get_d(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_double;
     fn mpfr_get_si(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_long;
     fn mpfr_init2(mpfr: *mut mpfr_struct, precision: mpfr_prec_t);
@@ -109,6 +110,16 @@ impl MPFR {
     }
 }
 
+impl Eq for MPFR {}
+
+impl PartialEq for MPFR {
+	fn eq(&self, other: &MPFR) -> bool {
+		unsafe {
+			mpfr_cmp(&self.internals, &other.internals) == 0
+		}
+	}
+}
+
 #[cfg(test)]
 mod test {
     use super::MPFR;
@@ -132,6 +143,16 @@ mod test {
     fn to_int() {
         assert_eq!(MPFR::from_int(128i64).to_int(), 128i64)
     }
+    
+    #[test]
+    fn eq() {
+        assert!(MPFR::from_float(256f64) == MPFR::from_int(256i64))
+    }
+    
+	#[test]
+	fn ne() {
+	    assert!(MPFR::from_int(7i64) != MPFR::from_int(77i64))
+	}
     
     #[test]
     fn nanniness() {
