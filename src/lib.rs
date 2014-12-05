@@ -34,6 +34,8 @@ type mpfr_sign_t = c_int;
 extern {
     fn mpfr_clear(mpfr: *mut mpfr_struct);
     fn mpfr_cmp(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_cmp_d(mpfr: *const mpfr_struct, other: c_double) -> c_int;
+    fn mpfr_cmp_si(mpfr: *const mpfr_struct, other: c_long) -> c_int;
     fn mpfr_equal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_get_d(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_double;
     fn mpfr_get_si(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_long;
@@ -87,21 +89,23 @@ impl MPFR {
     }
     
     pub fn to_int(&self) -> i64 {
-        unsafe {
-            mpfr_get_si(&self.internals, 0)
-        }
+        unsafe { mpfr_get_si(&self.internals, 0) }
     }
     
     pub fn to_float(&self) -> f64 {
-        unsafe {
-            mpfr_get_d(&self.internals, 0)
-        }
+        unsafe { mpfr_get_d(&self.internals, 0) }
     }
     
     pub fn is_nan(&self) -> bool {
-        unsafe {
-            mpfr_nan_p(&self.internals) != 0
-        }
+        unsafe { mpfr_nan_p(&self.internals) != 0 }
+    }
+    
+    pub fn is_equal_to_int(&self, value: i64) -> bool {
+    	unsafe { mpfr_cmp_si(&self.internals, value) == 0 }
+    }
+
+    pub fn is_equal_to_float(&self, value: f64) -> bool {
+    	unsafe { mpfr_cmp_d(&self.internals, value) == 0 }
     }
     
     pub fn to_string(&self) -> String {
@@ -252,6 +256,26 @@ mod test {
 		#[test]
 		fn greater_equal_2() {
 		    assert!(MPFR::from_int(7i64) >= MPFR::from_int(7i64))
+		}
+		
+		#[test]
+		fn equal_to_int() {
+		    assert!(MPFR::from_int(8i64).is_equal_to_int(8i64))
+		}
+
+		#[test]
+		fn equal_to_int_2() {
+		    assert!(!(MPFR::from_int(8i64).is_equal_to_int(9i64)))
+		}
+		
+		#[test]
+		fn equal_to_float() {
+		    assert!(MPFR::from_int(8i64).is_equal_to_float(8f64))
+		}
+
+		#[test]
+		fn equal_to_float_2() {
+		    assert!(!(MPFR::from_int(8i64).is_equal_to_float(9f64)))
 		}		
     }	
     
