@@ -34,13 +34,20 @@ type mpfr_sign_t = c_int;
 extern {
     fn mpfr_clear(mpfr: *mut mpfr_struct);
     fn mpfr_cmp(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_equal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_get_d(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_double;
     fn mpfr_get_si(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_long;
+    fn mpfr_greater_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_greaterequal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_init2(mpfr: *mut mpfr_struct, precision: mpfr_prec_t);
+    fn mpfr_less_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_lessequal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_lessgreater_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_nan_p(mpfr: *const mpfr_struct) -> c_int;
     fn mpfr_set_d(mpfr: *mut mpfr_struct, value: c_double, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_set_si(mpfr: *mut mpfr_struct, value: c_long, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_snprintf(buffer: *const c_char, length: size_t, string: *const u8, mpfr: *const mpfr_struct) -> c_int;
+    fn mpfr_unordered_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
 }
 
 pub struct MPFR {
@@ -110,19 +117,59 @@ impl MPFR {
     }
 }
 
-impl Eq for MPFR {}
-
 impl PartialEq for MPFR {
 	fn eq(&self, other: &MPFR) -> bool {
 		unsafe {
-			mpfr_cmp(&self.internals, &other.internals) == 0
+			mpfr_equal_p(&self.internals, &other.internals) != 0
 		}
+	}
+	
+	fn ne(&self, other: &MPFR) -> bool {
+		unsafe {
+			mpfr_lessgreater_p(&self.internals, &other.internals) != 0
+		}
+	}
+}
+
+impl PartialOrd for MPFR {
+	fn partial_cmp(&self, other: &MPFR) -> Option<Ordering> {
+		let smoke_test = unsafe { mpfr_unordered_p(&self.internals, &other.internals) };
+		if smoke_test != 0 {
+			return None;
+		}
+		
+		let result = unsafe { mpfr_cmp(&self.internals, &other.internals) };
+        Some(if result == 0 {
+            Equal
+        }
+        else if result < 0 {
+            Less
+        }
+        else {
+            Greater
+        })
+	}
+	
+	fn lt(&self, other: &MPFR) -> bool {
+		unsafe { mpfr_less_p(&self.internals, &other.internals) != 0 }
+	}
+
+	fn le(&self, other: &MPFR) -> bool {
+		unsafe { mpfr_lessequal_p(&self.internals, &other.internals) != 0 }
+	}
+	
+	fn gt(&self, other: &MPFR) -> bool {
+		unsafe { mpfr_greater_p(&self.internals, &other.internals) != 0 }
+	}
+
+	fn ge(&self, other: &MPFR) -> bool {
+		unsafe { mpfr_greaterequal_p(&self.internals, &other.internals) != 0 }
 	}
 }
 
 #[cfg(test)]
 mod test {
-    use super::MPFR;
+    pub use super::MPFR;
 
     #[test]
     fn from_float() {
@@ -144,15 +191,69 @@ mod test {
         assert_eq!(MPFR::from_int(128i64).to_int(), 128i64)
     }
     
-    #[test]
-    fn eq() {
-        assert!(MPFR::from_float(256f64) == MPFR::from_int(256i64))
-    }
-    
-	#[test]
-	fn ne() {
-	    assert!(MPFR::from_int(7i64) != MPFR::from_int(77i64))
-	}
+    mod cmp {
+    	use super::MPFR;
+    	
+		#[test]
+		fn eq() {
+			assert!(MPFR::from_float(256f64) == MPFR::from_int(256i64))
+		}
+
+		#[test]
+		fn eq_2() {
+			assert!(!(MPFR::from_float(256f64) == MPFR::from_int(128i64)))
+		}
+	
+		#[test]
+		fn ne() {
+			assert!(MPFR::from_int(7i64) != MPFR::from_int(77i64))
+		}
+
+		#[test]
+		fn ne_2() {
+			assert!(!(MPFR::from_int(7i64) != MPFR::from_int(7i64)))
+		}
+		
+		#[test]
+		fn less() {
+		    assert!(MPFR::from_int(7i64) < MPFR::from_int(8i64))
+		}
+		
+		#[test]
+		fn less_2() {
+		    assert!(!(MPFR::from_int(7i64) < MPFR::from_int(6i64)))
+		}
+
+		#[test]
+		fn less_equal() {
+		    assert!(MPFR::from_int(7i64) <= MPFR::from_int(8i64))
+		}
+
+		#[test]
+		fn less_equal_2() {
+		    assert!(MPFR::from_int(7i64) <= MPFR::from_int(7i64))
+		}
+
+		#[test]
+		fn greater() {
+		    assert!(MPFR::from_int(7i64) > MPFR::from_int(6i64))
+		}
+		
+		#[test]
+		fn greater_2() {
+		    assert!(!(MPFR::from_int(7i64) > MPFR::from_int(8i64)))
+		}
+
+		#[test]
+		fn greater_equal() {
+		    assert!(MPFR::from_int(7i64) >= MPFR::from_int(6i64))
+		}
+
+		#[test]
+		fn greater_equal_2() {
+		    assert!(MPFR::from_int(7i64) >= MPFR::from_int(7i64))
+		}		
+    }	
     
     #[test]
     fn nanniness() {
