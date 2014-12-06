@@ -32,10 +32,12 @@ type mpfr_sign_t = c_int;
 
 #[link(name = "mpfr")]
 extern {
+    fn mpfr_add(result: *mut mpfr_struct, a: *const mpfr_struct, b: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_clear(mpfr: *mut mpfr_struct);
     fn mpfr_cmp_d(mpfr: *const mpfr_struct, other: c_double) -> c_int;
     fn mpfr_cmp_si(mpfr: *const mpfr_struct, other: c_long) -> c_int;
     fn mpfr_cmp(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_div(result: *mut mpfr_struct, a: *const mpfr_struct, b: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_equal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_get_d(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_double;
     fn mpfr_get_si(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_long;
@@ -46,6 +48,7 @@ extern {
     fn mpfr_less_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_lessequal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_lessgreater_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_mul(result: *mut mpfr_struct, a: *const mpfr_struct, b: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_nan_p(mpfr: *const mpfr_struct) -> c_int;
     fn mpfr_number_p(mpfr: *const mpfr_struct) -> c_int;
     fn mpfr_regular_p(mpfr: *const mpfr_struct) -> c_int;
@@ -55,6 +58,7 @@ extern {
     fn mpfr_set_si(mpfr: *mut mpfr_struct, value: c_long, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_set_zero(mpfr: *mut mpfr_struct, sign: c_int);
     fn mpfr_snprintf(buffer: *const c_char, length: size_t, string: *const u8, mpfr: *const mpfr_struct) -> c_int;
+    fn mpfr_sub(result: *mut mpfr_struct, a: *const mpfr_struct, b: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_unordered_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_zero_p(mpfr: *const mpfr_struct) -> c_int;
 }
@@ -228,6 +232,46 @@ impl PartialOrd for MPFR {
     }
 }
 
+impl Add<MPFR, MPFR> for MPFR {
+    fn add(&self, other: &MPFR) -> MPFR {
+        unsafe {
+            let mut result = mpfr_struct::bare();
+            mpfr_add(&mut result, &self.internals, &other.internals, 0);
+            MPFR { internals: result }
+        }
+    }
+}
+
+impl Sub<MPFR, MPFR> for MPFR {
+    fn sub(&self, other: &MPFR) -> MPFR {
+        unsafe {
+            let mut result = mpfr_struct::bare();
+            mpfr_sub(&mut result, &self.internals, &other.internals, 0);
+            MPFR { internals: result }
+        }
+    }
+}
+
+impl Mul<MPFR, MPFR> for MPFR {
+    fn mul(&self, other: &MPFR) -> MPFR {
+        unsafe {
+            let mut result = mpfr_struct::bare();
+            mpfr_mul(&mut result, &self.internals, &other.internals, 0);
+            MPFR { internals: result }
+        }
+    }
+}
+
+impl Div<MPFR, MPFR> for MPFR {
+    fn div(&self, other: &MPFR) -> MPFR {
+        unsafe {
+            let mut result = mpfr_struct::bare();
+            mpfr_div(&mut result, &self.internals, &other.internals, 0);
+            MPFR { internals: result }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     pub use super::MPFR;
@@ -377,6 +421,30 @@ mod test {
         #[test]
         fn regular() {
             assert!(!(MPFR::zero().is_regular()))
+        }
+    }
+    
+    mod arithmetic {
+        use super::MPFR;
+        
+        #[test]
+        fn add() {
+            assert!(MPFR::from_int(3i64) + MPFR::from_int(4i64) == MPFR::from_int(7i64))
+        }
+        
+        #[test]
+        fn sub() {
+            assert!(MPFR::from_int(10i64) - MPFR::from_float(3.5f64) == MPFR::from_float(6.5f64))
+        }
+    
+        #[test]
+        fn mul() {
+            assert!(MPFR::from_int(3i64) * MPFR::from_int(4i64) == MPFR::from_int(12i64))
+        }
+        
+        #[test]
+        fn div() {
+            assert!(MPFR::from_int(5i64) / MPFR::from_int(2i64) == MPFR::from_float(2.5f64))
         }
     }
 }
