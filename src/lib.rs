@@ -1,11 +1,15 @@
-#![crate_name = "rust-mpfr"]
-#![crate_type = "lib"]
 #![allow(non_camel_case_types)]
+#![feature(libc)]
+#![feature(core)]
 
 extern crate libc;
 
 use libc::{c_char, c_double, c_int, c_long, c_void, size_t};
-use std::str::from_c_str;
+use std::cmp::Ordering;
+use std::str;
+use std::ffi::{CStr};
+use std::string::{ToString};
+use std::ops::{Add, Sub, Mul, Div};
 
 static DEFAULT_PRECISION: c_long = 53;
 
@@ -39,6 +43,7 @@ extern {
     fn mpfr_cmp(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
     fn mpfr_div(result: *mut mpfr_struct, a: *const mpfr_struct, b: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_int;
     fn mpfr_equal_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
+    fn mpfr_get_prec(mpfr: *const mpfr_struct) -> c_long;
     fn mpfr_get_d(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_double;
     fn mpfr_get_si(mpfr: *const mpfr_struct, rounding: mpfr_rnd_t) -> c_long;
     fn mpfr_greater_p(mpfr: *const mpfr_struct, other: *const mpfr_struct) -> c_int;
@@ -168,16 +173,20 @@ impl MPFR {
     pub fn is_equal_to_float(&self, value: f64) -> bool {
         unsafe { mpfr_cmp_d(&self.internals, value) == 0 }
     }
-    
-    pub fn to_string(&self) -> String {
-        unsafe {
-            // todo: this is fixed length! why is fixed length! why!
-            let mut vector: Vec<c_char> = Vec::with_capacity(127);
-            vector.set_len(127);
 
-            let buffer = vector.as_ptr();
-            mpfr_snprintf(buffer, 128, b"%.0Rf\x00".as_ptr(), &self.internals);
-            from_c_str(buffer).to_string()
+}
+
+impl ToString for MPFR {
+    fn to_string(&self) -> String {
+        unsafe {
+            let prec : c_long = mpfr_get_prec(&self.internals)/8;
+            let buff : Vec<c_char> = Vec::with_capacity(prec as usize);
+            mpfr_snprintf(buff.as_ptr(),
+                          prec as size_t,
+                          b"%.0Rf".as_ptr(),
+                          &self.internals);
+            let s = CStr::from_ptr(buff.as_ptr());
+            str::from_utf8(s.to_bytes()).unwrap().to_string()
         }
     }
 }
@@ -205,13 +214,13 @@ impl PartialOrd for MPFR {
         
         let result = unsafe { mpfr_cmp(&self.internals, &other.internals) };
         Some(if result == 0 {
-            Equal
+            Ordering::Equal
         }
         else if result < 0 {
-            Less
+            Ordering::Less
         }
         else {
-            Greater
+            Ordering::Greater
         })
     }
     
@@ -232,8 +241,10 @@ impl PartialOrd for MPFR {
     }
 }
 
-impl Add<MPFR, MPFR> for MPFR {
-    fn add(&self, other: &MPFR) -> MPFR {
+impl Add for MPFR {
+    type Output = MPFR;
+    
+    fn add(self, other: MPFR) -> MPFR {
         unsafe {
             let mut result = mpfr_struct::bare();
             mpfr_add(&mut result, &self.internals, &other.internals, 0);
@@ -242,8 +253,10 @@ impl Add<MPFR, MPFR> for MPFR {
     }
 }
 
-impl Sub<MPFR, MPFR> for MPFR {
-    fn sub(&self, other: &MPFR) -> MPFR {
+impl Sub for MPFR {
+    type Output = MPFR;
+
+    fn sub(self, other: MPFR) -> MPFR {
         unsafe {
             let mut result = mpfr_struct::bare();
             mpfr_sub(&mut result, &self.internals, &other.internals, 0);
@@ -252,8 +265,10 @@ impl Sub<MPFR, MPFR> for MPFR {
     }
 }
 
-impl Mul<MPFR, MPFR> for MPFR {
-    fn mul(&self, other: &MPFR) -> MPFR {
+impl Mul for MPFR {
+    type Output = MPFR;
+    
+    fn mul(self, other: MPFR) -> MPFR {
         unsafe {
             let mut result = mpfr_struct::bare();
             mpfr_mul(&mut result, &self.internals, &other.internals, 0);
@@ -262,8 +277,10 @@ impl Mul<MPFR, MPFR> for MPFR {
     }
 }
 
-impl Div<MPFR, MPFR> for MPFR {
-    fn div(&self, other: &MPFR) -> MPFR {
+impl Div for MPFR {
+    type Output = MPFR;
+
+    fn div(self, other: MPFR) -> MPFR {
         unsafe {
             let mut result = mpfr_struct::bare();
             mpfr_div(&mut result, &self.internals, &other.internals, 0);
@@ -278,7 +295,7 @@ mod test {
 
     #[test]
     fn from_float() {
-        assert_eq!(MPFR::from_float(1337f64).to_string(), "1337".to_string())
+        assert_eq!(MPFR::from_float(1337f64).to_string(), "1337".to_string());
     }
     
     #[test]
