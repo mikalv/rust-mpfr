@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types)]
 #![feature(libc)]
 #![feature(core)]
+#![crate_name(mpfr)]
 
 extern crate libc;
 
